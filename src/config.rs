@@ -224,6 +224,11 @@ pub fn resolve_password(config: &Config) -> (String, bool) {
 pub fn set_auto_launch(enable: bool) -> Result<()> {
     let exe = std::env::current_exe().context("Could not get current exe path")?;
     let exe_str = exe.to_string_lossy();
+    // macOS AutoLaunch::new takes 4 args (name, path, use_launch_agent, args);
+    // Windows and Linux take 3 args (name, path, args).
+    #[cfg(target_os = "macos")]
+    let al = auto_launch::AutoLaunch::new("qbit-killswitch", &exe_str, true, &[] as &[&str]);
+    #[cfg(not(target_os = "macos"))]
     let al = auto_launch::AutoLaunch::new("qbit-killswitch", &exe_str, &[] as &[&str]);
     if enable {
         al.enable().context("Could not enable auto-launch")?;

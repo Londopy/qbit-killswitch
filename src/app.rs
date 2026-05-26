@@ -202,7 +202,7 @@ impl KillswitchApp {
     fn poll_tray_events(&mut self, ctx: &egui::Context) {
         // Tray icon left-click → show window
         while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-            if matches!(event, TrayIconEvent::Click { .. } | TrayIconEvent::DoubleClick { .. }) {
+            if matches!(event, TrayIconEvent::Click { .. }) {
                 ctx.send_viewport_cmd(ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(ViewportCommand::Focus);
             }
@@ -357,7 +357,7 @@ impl KillswitchApp {
                     ui.label("Poll interval");
                     ui.add(
                         egui::DragValue::new(&mut self.editing.config.poll_secs)
-                            .range(5..=3600)
+                            .clamp_range(5..=3600)
                             .speed(1.0),
                     );
                     ui.label("seconds");
@@ -367,7 +367,7 @@ impl KillswitchApp {
                     ui.label("Fail threshold");
                     ui.add(
                         egui::DragValue::new(&mut self.editing.config.fail_threshold)
-                            .range(1..=20)
+                            .clamp_range(1..=20)
                             .speed(1.0),
                     );
                     ui.label("consecutive failures");
@@ -599,7 +599,7 @@ impl eframe::App for KillswitchApp {
                                 format!("NOMINAL — VPN IP: {ip_str}")
                             }
                         }
-                        AppState::Degraded => format!("DEGRADED — {streak}/{fail_threshold} failures"),
+                        AppState::Degraded => format!("DEGRADED — {fail_streak}/{fail_threshold} failures"),
                         AppState::Paused   => "PAUSED — torrents halted".to_string(),
                         AppState::Recovery => "RECOVERING…".to_string(),
                     };
@@ -638,9 +638,10 @@ impl eframe::App for KillswitchApp {
             self.render_settings(ui);
         });
 
-        // ââ Unsaved changes dialog ââââââââââââââââââââââââââââââââââââââ
+        // ── Unsaved changes dialog ──────────────────────────────────────
         if self.show_unsaved_dialog {
             self.render_unsaved_dialog(ctx);
         }
     }
 }
+                   

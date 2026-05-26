@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use std::time::Duration;
 
 const TIMEOUT: Duration = Duration::from_secs(10);
