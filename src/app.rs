@@ -644,4 +644,3 @@ impl eframe::App for KillswitchApp {
         }
     }
 }
-                   
