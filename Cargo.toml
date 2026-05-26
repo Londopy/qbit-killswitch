@@ -1,0 +1,35 @@
+[package]
+name = "qbit-killswitch"
+version = "0.4.0"
+edition = "2021"
+description = "VPN killswitch daemon for qBittorrent"
+
+[[bin]]
+name = "qbit-killswitch"
+path = "src/main.rs"
+
+[dependencies]
+tokio       = { version = "1",      features = ["full"] }
+reqwest     = { version = "0.12",   features = ["cookies", "rustls-tls", "json"] }
+anyhow      = "1"
+eframe      = "0.27"
+egui        = "0.27"
+tray-icon   = "0.14"
+auto-launch = "0.5"
+keyring     = "3"
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+toml        = "0.8"
+url         = "2"
+
+# Linux: tray-icon requires one of these system libraries at build time.
+#   sudo apt install libayatana-appindicator3-dev   (preferred)
+#   sudo apt install libgtk-3-dev                   (fallback)
+# Add features = ["ayatana"] to the tray-icon entry above if needed.
+
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1
+panic         = "abort"
+strip         = true

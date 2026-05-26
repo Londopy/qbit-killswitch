@@ -1,0 +1,23 @@
+# Rust build output
+/target/
+
+# Cargo lock (keep for binaries, remove this line for libraries)
+# Cargo.lock
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+
+# Environment / secrets
+.env
+*.key
+
+# Generated binaries
+*.exe
+*.pdb
