@@ -121,7 +121,7 @@ pub struct KillswitchApp {
     // Tray
     _tray_icon:  TrayIcon,
     resume_item: MenuItem,
-    pause_item:  MenuItem,
+    _pause_item: MenuItem,
     status_item: MenuItem,
     ip_item:     MenuItem,
 
@@ -190,7 +190,7 @@ impl KillswitchApp {
             test_conn_result: None,
             _tray_icon: tray_icon,
             resume_item,
-            pause_item,
+            _pause_item: pause_item,
             status_item,
             ip_item,
             load_warning,
