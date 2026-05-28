@@ -111,18 +111,25 @@ qBittorrent must have its **Web UI enabled** — Tools → Options → Web UI �
 Pre-built binaries are published for every tagged release on the
 https://github.com/Londopy/qbit-killswitch/releases[Releases page].
 
-[cols="1,2",options="header"]
+[cols="1,2,2",options="header"]
 |===
-|Platform |File
+|Platform |File |Notes
 
-|Windows x64
+|Windows x64 *(installer)*
+|`qbit-killswitch-{version}-setup.exe`
+|*Recommended* — creates Start Menu / desktop shortcuts and handles uninstall cleanly.
+
+|Windows x64 *(portable)*
 |`qbit-killswitch-{version}-windows-x64.exe`
+|Single executable, no installation needed.
 
 |Linux x64
 |`qbit-killswitch-{version}-linux-x64`
+|
 
 |macOS Apple Silicon
 |`qbit-killswitch-{version}-macos-arm64`
+|
 |===
 
 A `checksums.txt` file is published with every release. Verify your download before running it:

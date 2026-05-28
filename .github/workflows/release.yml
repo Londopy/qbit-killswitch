@@ -74,6 +74,32 @@ jobs:
           path: ${{ env.ARTIFACT }}
           if-no-files-found: error
 
+      # ── Windows installer (Inno Setup is pre-installed on windows-latest) ──
+      - name: Build Windows installer
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          # The ISS script looks for the binary at target\release\; copy it there.
+          mkdir -p target/release
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} target/release/${{ matrix.binary }}
+          # Strip leading 'v' from tag (v0.4.0 → 0.4.0) for the AppVersion define.
+          VER="${GITHUB_REF_NAME#v}"
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+            "/DAppVersion=${VER}" \
+            installer/qbit-killswitch.iss
+          # Rename output to match the versioned artifact convention.
+          mv "installer/output/qbit-killswitch-setup-${VER}.exe" \
+             "qbit-killswitch-${GITHUB_REF_NAME}-setup.exe"
+          echo "INSTALLER=qbit-killswitch-${GITHUB_REF_NAME}-setup.exe" >> "$GITHUB_ENV"
+
+      - name: Upload installer artifact
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.INSTALLER }}
+          path: ${{ env.INSTALLER }}
+          if-no-files-found: error
+
   # ── Collect, checksum, publish ───────────────────────────────────────────────
   release:
     name: Publish Release
@@ -95,6 +121,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME}"
           sha256sum \
+            "qbit-killswitch-${VERSION}-setup.exe" \
             "qbit-killswitch-${VERSION}-windows-x64.exe" \
             "qbit-killswitch-${VERSION}-linux-x64" \
             "qbit-killswitch-${VERSION}-macos-arm64" \
@@ -106,6 +133,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/qbit-killswitch-${{ github.ref_name }}-setup.exe
             dist/qbit-killswitch-${{ github.ref_name }}-windows-x64.exe
             dist/qbit-killswitch-${{ github.ref_name }}-linux-x64
             dist/qbit-killswitch-${{ github.ref_name }}-macos-arm64
@@ -131,13 +159,14 @@ jobs:
 
             ### Downloads
 
-            | Platform | File |
-            |---|---|
-            | Windows x64 | `qbit-killswitch-${{ github.ref_name }}-windows-x64.exe` |
-            | Linux x64 | `qbit-killswitch-${{ github.ref_name }}-linux-x64` |
-            | macOS Apple Silicon | `qbit-killswitch-${{ github.ref_name }}-macos-arm64` |
+            | Platform | File | Notes |
+            |---|---|---|
+            | **Windows x64 (installer)** | `qbit-killswitch-${{ github.ref_name }}-setup.exe` | Recommended — creates shortcuts and handles uninstall |
+            | Windows x64 (portable) | `qbit-killswitch-${{ github.ref_name }}-windows-x64.exe` | Single executable, no installer |
+            | Linux x64 | `qbit-killswitch-${{ github.ref_name }}-linux-x64` | |
+            | macOS Apple Silicon | `qbit-killswitch-${{ github.ref_name }}-macos-arm64` | |
 
-            Download `checksums.txt` alongside your binary to verify integrity.
+            Download `checksums.txt` alongside your file to verify integrity.
 
             ---
 
@@ -150,7 +179,7 @@ jobs:
 
             **Windows — PowerShell**
             ```powershell
-            Get-FileHash .\qbit-killswitch-${{ github.ref_name }}-windows-x64.exe -Algorithm SHA256
+            Get-FileHash .\qbit-killswitch-${{ github.ref_name }}-setup.exe -Algorithm SHA256
             # Compare the hash above with the matching line in checksums.txt
             ```
 
