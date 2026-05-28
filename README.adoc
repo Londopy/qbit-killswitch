@@ -100,7 +100,7 @@ sudo apt install libgtk-3-dev                   # fallback
 
 |macOS
 |macOS 11 Big Sur
-|Intel and Apple Silicon builds available
+|Apple Silicon (ARM64) build available
 |===
 
 qBittorrent must have its **Web UI enabled** — Tools → Options → Web UI → tick _Enable the Web User Interface_.
@@ -119,9 +119,6 @@ https://github.com/Londopy/qbit-killswitch/releases[Releases page].
 
 |Linux x64
 |`qbit-killswitch-linux-x64`
-
-|macOS Intel
-|`qbit-killswitch-macos-x64`
 
 |macOS Apple Silicon
 |`qbit-killswitch-macos-arm64`

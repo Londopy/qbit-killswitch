@@ -27,11 +27,6 @@ jobs:
             binary: qbit-killswitch
             artifact: qbit-killswitch-linux-x64
 
-          - os: macos-13          # Intel runner
-            target: x86_64-apple-darwin
-            binary: qbit-killswitch
-            artifact: qbit-killswitch-macos-x64
-
           - os: macos-latest      # Apple Silicon runner
             target: aarch64-apple-darwin
             binary: qbit-killswitch
@@ -98,7 +93,6 @@ jobs:
           sha256sum \
             qbit-killswitch-windows-x64.exe \
             qbit-killswitch-linux-x64 \
-            qbit-killswitch-macos-x64 \
             qbit-killswitch-macos-arm64 \
             > checksums.txt
           echo "── checksums.txt ──"
@@ -110,7 +104,6 @@ jobs:
           files: |
             dist/qbit-killswitch-windows-x64.exe
             dist/qbit-killswitch-linux-x64
-            dist/qbit-killswitch-macos-x64
             dist/qbit-killswitch-macos-arm64
             dist/checksums.txt
           body: |
@@ -138,7 +131,6 @@ jobs:
             |---|---|
             | Windows x64 | `qbit-killswitch-windows-x64.exe` |
             | Linux x64 | `qbit-killswitch-linux-x64` |
-            | macOS Intel | `qbit-killswitch-macos-x64` |
             | macOS Apple Silicon | `qbit-killswitch-macos-arm64` |
 
             Download `checksums.txt` alongside your binary to verify integrity.
