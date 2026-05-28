@@ -102,8 +102,7 @@ Filename: "taskkill.exe"; \
 Root: HKCU; \
   Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; \
   ValueName: "{#AppRegKey}"; \
-  Flags: deletevalue uninsdeletevalue; \
-  Check: RegValueExists(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run', '{#AppRegKey}')
+  Flags: deletevalue uninsdeletevalue
 
 [Code]
 // Show a reminder on the finish page if the Web UI note is relevant.
