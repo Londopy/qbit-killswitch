@@ -94,6 +94,14 @@ impl FormState {
     }
 }
 
+// ── Tab selection ─────────────────────────────────────────────────────────────
+
+#[derive(PartialEq)]
+enum AppTab {
+    Settings,
+    Help,
+}
+
 // ── KillswitchApp ─────────────────────────────────────────────────────────────
 
 pub struct KillswitchApp {
@@ -113,6 +121,9 @@ pub struct KillswitchApp {
     /// Whether to actually close (true) or minimize-to-tray (false) after confirming.
     quit_after_dialog:   bool,
     show_password:       bool,
+    /// When the password was last revealed; auto-hides after 60 s.
+    show_password_since: Option<Instant>,
+    active_tab:          AppTab,
     blink_start:         Instant,
 
     // Test connection
@@ -187,6 +198,8 @@ impl KillswitchApp {
             show_unsaved_dialog: false,
             quit_after_dialog: false,
             show_password: false,
+            show_password_since: None,
+            active_tab: AppTab::Settings,
             blink_start: Instant::now(),
             test_conn_pending: None,
             test_conn_result: None,
@@ -289,8 +302,10 @@ impl KillswitchApp {
                                     .password(!self.show_password),
                             );
                             let eye = if self.show_password { "🙈" } else { "👁" };
-                            if ui.small_button(eye).on_hover_text("Show / hide password").clicked() {
+                            if ui.small_button(eye).on_hover_text("Show / hide password (auto-hides after 1 min)").clicked() {
                                 self.show_password = !self.show_password;
+                                self.show_password_since =
+                                    if self.show_password { Some(Instant::now()) } else { None };
                             }
                         });
                         ui.end_row();
@@ -486,6 +501,134 @@ impl KillswitchApp {
         self.saved = self.editing.clone();
     }
 
+    // ── Help / wiki tab ───────────────────────────────────────────────────────
+
+    fn render_help(ui: &mut Ui) {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            ui.add_space(4.0);
+
+            // ── Overview ──────────────────────────────────────────────────────
+            ui.group(|ui| {
+                ui.strong("How it works");
+                ui.add_space(4.0);
+                ui.label(
+                    "qbit-killswitch watches your public IP address on a regular interval. \
+                     The first IP it sees after launch is recorded as your safe VPN IP. \
+                     If the IP ever changes — or stops being reachable — it immediately \
+                     tells qBittorrent to pause every active torrent. Once the VPN comes \
+                     back and the same IP is seen again, it resumes them automatically."
+                );
+            });
+
+            ui.add_space(6.0);
+
+            // ── States ────────────────────────────────────────────────────────
+            ui.group(|ui| {
+                ui.strong("States");
+                ui.add_space(4.0);
+
+                let states: &[(&str, Color32, &str)] = &[
+                    ("STARTING",   Color32::GRAY,                        "Waiting for the first successful IP fetch to anchor the VPN IP."),
+                    ("NOMINAL",    Color32::from_rgb(40, 200, 40),       "Current IP matches the recorded VPN IP. Torrents run normally."),
+                    ("DEGRADED",   Color32::from_rgb(230, 180, 0),       "IP mismatch or fetch failure detected. Counting toward the fail threshold before pausing."),
+                    ("PAUSED",     Color32::from_rgb(220, 60, 60),       "Threshold reached — all torrents are paused. Any torrent manually resumed will be re-paused automatically."),
+                    ("RECOVERING", Color32::from_rgb(0, 210, 210),       "VPN restored — attempting to resume all torrents."),
+                ];
+
+                egui::Grid::new("help_states")
+                    .num_columns(2)
+                    .spacing([8.0, 5.0])
+                    .show(ui, |ui| {
+                        for (name, color, desc) in states {
+                            ui.label(RichText::new(*name).color(*color).strong());
+                            ui.label(*desc);
+                            ui.end_row();
+                        }
+                    });
+            });
+
+            ui.add_space(6.0);
+
+            // ── Settings ──────────────────────────────────────────────────────
+            ui.group(|ui| {
+                ui.strong("Settings reference");
+                ui.add_space(4.0);
+
+                egui::Grid::new("help_settings")
+                    .num_columns(2)
+                    .spacing([8.0, 5.0])
+                    .show(ui, |ui| {
+                        let rows: &[(&str, &str)] = &[
+                            ("URL",              "qBittorrent Web UI address, e.g. http://127.0.0.1:8080"),
+                            ("User / Password",  "Web UI login credentials (Tools → Options → Web UI in qBittorrent)."),
+                            ("OS keychain",      "When enabled the password is stored in Windows Credential Manager / macOS Keychain / Linux Secret Service — never written to the config file."),
+                            ("IP Check URLs",    "Services queried to get your current public IP. Tried in order; the first success wins. Multiple URLs prevent a dead service from causing a false positive."),
+                            ("Poll interval",    "How often (in seconds) the IP is checked. Minimum 5 s."),
+                            ("Fail threshold",   "How many consecutive failures are tolerated before torrents are paused. A value of 3 means three bad checks in a row, not three bad seconds."),
+                            ("Launch at startup","Registers the app to start with Windows / Linux / macOS automatically."),
+                            ("Minimize to tray", "Closing the window hides it to the system tray rather than quitting."),
+                        ];
+                        for (field, desc) in rows {
+                            ui.label(RichText::new(*field).strong());
+                            ui.label(*desc);
+                            ui.end_row();
+                        }
+                    });
+            });
+
+            ui.add_space(6.0);
+
+            // ── Tray ──────────────────────────────────────────────────────────
+            ui.group(|ui| {
+                ui.strong("Tray menu");
+                ui.add_space(4.0);
+                ui.label("Right-click the tray icon to access:");
+                ui.add_space(4.0);
+
+                egui::Grid::new("help_tray")
+                    .num_columns(2)
+                    .spacing([8.0, 5.0])
+                    .show(ui, |ui| {
+                        let rows: &[(&str, &str)] = &[
+                            ("Open qbit-killswitch", "Show the main window."),
+                            ("Status / VPN IP",      "Read-only status display."),
+                            ("Resume all torrents",  "Manually resume — available when paused or degraded."),
+                            ("Pause all torrents",   "Manually pause all torrents immediately."),
+                            ("Re-detect VPN IP",     "Re-anchor the daemon to the current public IP (use after switching VPN server)."),
+                            ("Quit",                 "Exit the app. Torrents will not be managed after this."),
+                        ];
+                        for (item, desc) in rows {
+                            ui.label(RichText::new(*item).strong());
+                            ui.label(*desc);
+                            ui.end_row();
+                        }
+                    });
+            });
+
+            ui.add_space(6.0);
+
+            // ── Tips ──────────────────────────────────────────────────────────
+            ui.group(|ui| {
+                ui.strong("Tips");
+                ui.add_space(4.0);
+                for tip in [
+                    "Click the 👁 button next to the password field to reveal it. It hides again automatically after 1 minute.",
+                    "Use Test Connection before saving to confirm your credentials work.",
+                    "After switching VPN servers, click Re-detect VPN IP (or use the tray menu) to update the reference IP.",
+                    "If the Web UI is on a non-standard port, make sure to include it in the URL (e.g. http://127.0.0.1:9090).",
+                    "A fail threshold of 2–3 is recommended to absorb brief IP-check service outages without false positives.",
+                ] {
+                    ui.horizontal(|ui| {
+                        ui.label("•");
+                        ui.label(tip);
+                    });
+                }
+            });
+
+            ui.add_space(4.0);
+        });
+    }
+
     // ── Unsaved-changes modal ─────────────────────────────────────────────────
 
     fn render_unsaved_dialog(&mut self, ctx: &egui::Context) {
@@ -540,6 +683,14 @@ impl eframe::App for KillswitchApp {
             }
         }
         // If force_quit or minimize_to_tray=false, eframe handles the close normally.
+
+        // ── Auto-hide password after 60 s ─────────────────────────────────────
+        if let Some(since) = self.show_password_since {
+            if since.elapsed() >= Duration::from_secs(60) {
+                self.show_password = false;
+                self.show_password_since = None;
+            }
+        }
 
         // ── Poll async tasks & tray ────────────────────────────────────────────
         self.poll_tray_events(ctx);
@@ -642,9 +793,17 @@ impl eframe::App for KillswitchApp {
                 ui.add_space(4.0);
             });
 
-        // ── Main settings panel ────────────────────────────────────────────────
+        // ── Main panel (tabbed) ────────────────────────────────────────────────
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.render_settings(ui);
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.active_tab, AppTab::Settings, "⚙  Settings");
+                ui.selectable_value(&mut self.active_tab, AppTab::Help,     "?  Help");
+            });
+            ui.separator();
+            match self.active_tab {
+                AppTab::Settings => self.render_settings(ui),
+                AppTab::Help     => Self::render_help(ui),
+            }
         });
 
         // ── Unsaved changes dialog ──────────────────────────────────────

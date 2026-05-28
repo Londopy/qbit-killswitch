@@ -20,17 +20,17 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary: qbit-killswitch.exe
-            artifact: qbit-killswitch-windows-x64.exe
+            suffix: windows-x64.exe
 
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             binary: qbit-killswitch
-            artifact: qbit-killswitch-linux-x64
+            suffix: linux-x64
 
           - os: macos-latest      # Apple Silicon runner
             target: aarch64-apple-darwin
             binary: qbit-killswitch
-            artifact: qbit-killswitch-macos-arm64
+            suffix: macos-arm64
 
     steps:
       - name: Checkout
@@ -62,13 +62,16 @@ jobs:
 
       - name: Stage binary
         shell: bash
-        run: cp target/${{ matrix.target }}/release/${{ matrix.binary }} ${{ matrix.artifact }}
+        run: |
+          ARTIFACT="qbit-killswitch-${GITHUB_REF_NAME}-${{ matrix.suffix }}"
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} "$ARTIFACT"
+          echo "ARTIFACT=$ARTIFACT" >> "$GITHUB_ENV"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.ARTIFACT }}
           if-no-files-found: error
 
   # ── Collect, checksum, publish ───────────────────────────────────────────────
@@ -90,10 +93,11 @@ jobs:
       - name: Generate SHA-256 checksums
         working-directory: dist
         run: |
+          VERSION="${GITHUB_REF_NAME}"
           sha256sum \
-            qbit-killswitch-windows-x64.exe \
-            qbit-killswitch-linux-x64 \
-            qbit-killswitch-macos-arm64 \
+            "qbit-killswitch-${VERSION}-windows-x64.exe" \
+            "qbit-killswitch-${VERSION}-linux-x64" \
+            "qbit-killswitch-${VERSION}-macos-arm64" \
             > checksums.txt
           echo "── checksums.txt ──"
           cat checksums.txt
@@ -102,9 +106,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/qbit-killswitch-windows-x64.exe
-            dist/qbit-killswitch-linux-x64
-            dist/qbit-killswitch-macos-arm64
+            dist/qbit-killswitch-${{ github.ref_name }}-windows-x64.exe
+            dist/qbit-killswitch-${{ github.ref_name }}-linux-x64
+            dist/qbit-killswitch-${{ github.ref_name }}-macos-arm64
             dist/checksums.txt
           body: |
             ## qbit-killswitch ${{ github.ref_name }}
@@ -129,9 +133,9 @@ jobs:
 
             | Platform | File |
             |---|---|
-            | Windows x64 | `qbit-killswitch-windows-x64.exe` |
-            | Linux x64 | `qbit-killswitch-linux-x64` |
-            | macOS Apple Silicon | `qbit-killswitch-macos-arm64` |
+            | Windows x64 | `qbit-killswitch-${{ github.ref_name }}-windows-x64.exe` |
+            | Linux x64 | `qbit-killswitch-${{ github.ref_name }}-linux-x64` |
+            | macOS Apple Silicon | `qbit-killswitch-${{ github.ref_name }}-macos-arm64` |
 
             Download `checksums.txt` alongside your binary to verify integrity.
 
@@ -146,7 +150,7 @@ jobs:
 
             **Windows — PowerShell**
             ```powershell
-            Get-FileHash .\qbit-killswitch-windows-x64.exe -Algorithm SHA256
+            Get-FileHash .\qbit-killswitch-${{ github.ref_name }}-windows-x64.exe -Algorithm SHA256
             # Compare the hash above with the matching line in checksums.txt
             ```
 
@@ -156,6 +160,6 @@ jobs:
 
             ### Linux — first run
             ```bash
-            chmod +x qbit-killswitch-linux-x64
-            ./qbit-killswitch-linux-x64
+            chmod +x qbit-killswitch-${{ github.ref_name }}-linux-x64
+            ./qbit-killswitch-${{ github.ref_name }}-linux-x64
             ```

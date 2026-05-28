@@ -116,13 +116,13 @@ https://github.com/Londopy/qbit-killswitch/releases[Releases page].
 |Platform |File
 
 |Windows x64
-|`qbit-killswitch-windows-x64.exe`
+|`qbit-killswitch-{version}-windows-x64.exe`
 
 |Linux x64
-|`qbit-killswitch-linux-x64`
+|`qbit-killswitch-{version}-linux-x64`
 
 |macOS Apple Silicon
-|`qbit-killswitch-macos-arm64`
+|`qbit-killswitch-{version}-macos-arm64`
 |===
 
 A `checksums.txt` file is published with every release. Verify your download before running it:
