@@ -9,6 +9,7 @@ mod ip;
 mod monitor;
 mod qbit;
 mod state;
+mod updater;
 
 use config::Config;
 use state::SharedState;

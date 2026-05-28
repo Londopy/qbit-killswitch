@@ -11,6 +11,24 @@ fn default_poll_secs() -> u64 { 10 }
 fn default_fail_threshold() -> u32 { 2 }
 fn default_qbit_url() -> String { "http://127.0.0.1:8080".to_string() }
 fn default_admin() -> String { "admin".to_string() }
+fn default_check_interval_h() -> u32 { 24 }
+
+// ── UpdaterConfig ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdaterConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// How many hours between automatic checks.
+    #[serde(default = "default_check_interval_h")]
+    pub check_interval_h: u32,
+}
+
+impl Default for UpdaterConfig {
+    fn default() -> Self {
+        Self { enabled: true, check_interval_h: 24 }
+    }
+}
 pub fn default_ip_check_urls() -> Vec<String> {
     vec![
         "https://ifconfig.me/ip".to_string(),
@@ -54,6 +72,9 @@ pub struct Config {
 
     #[serde(default = "default_true")]
     pub minimize_to_tray: bool,
+
+    #[serde(default)]
+    pub updater: UpdaterConfig,
 }
 
 impl Default for Config {
@@ -69,6 +90,7 @@ impl Default for Config {
             fail_threshold: 2,
             launch_at_startup: false,
             minimize_to_tray: true,
+            updater: UpdaterConfig::default(),
         }
     }
 }

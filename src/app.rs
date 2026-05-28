@@ -100,14 +100,16 @@ impl FormState {
 
     fn has_changes(&self, saved: &FormState) -> bool {
         self.password != saved.password
-            || self.config.qbit_url          != saved.config.qbit_url
-            || self.config.qbit_user         != saved.config.qbit_user
-            || self.config.use_keychain      != saved.config.use_keychain
-            || self.config.ip_check_urls     != saved.config.ip_check_urls
-            || self.config.poll_secs         != saved.config.poll_secs
-            || self.config.fail_threshold    != saved.config.fail_threshold
-            || self.config.launch_at_startup != saved.config.launch_at_startup
-            || self.config.minimize_to_tray  != saved.config.minimize_to_tray
+            || self.config.qbit_url                      != saved.config.qbit_url
+            || self.config.qbit_user                     != saved.config.qbit_user
+            || self.config.use_keychain                  != saved.config.use_keychain
+            || self.config.ip_check_urls                 != saved.config.ip_check_urls
+            || self.config.poll_secs                     != saved.config.poll_secs
+            || self.config.fail_threshold                != saved.config.fail_threshold
+            || self.config.launch_at_startup             != saved.config.launch_at_startup
+            || self.config.minimize_to_tray              != saved.config.minimize_to_tray
+            || self.config.updater.enabled               != saved.config.updater.enabled
+            || self.config.updater.check_interval_h      != saved.config.updater.check_interval_h
     }
 }
 
@@ -116,6 +118,7 @@ impl FormState {
 #[derive(PartialEq)]
 enum AppTab {
     Settings,
+    Updates,
     Help,
 }
 
@@ -148,6 +151,18 @@ pub struct KillswitchApp {
     test_conn_result:        Option<Result<(), String>>,
     /// Password snapshot taken when a test is launched; restored if the field empties.
     test_conn_pass_snapshot: String,
+
+    // Auto-updater
+    /// Receives the result of a background update check.
+    update_check_rx:      Option<std::sync::mpsc::Receiver<Result<Option<String>, String>>>,
+    /// Receives an error if background_apply fails (success exits the process).
+    update_apply_rx:      Option<std::sync::mpsc::Receiver<Result<(), String>>>,
+    /// Status string shown in the Updates tab.
+    update_status:        Option<String>,
+    /// Non-None when a newer version is available and ready to install.
+    update_available:     Option<String>,
+    /// When the last check started (for scheduling the next periodic check).
+    last_update_check:    Instant,
 
     // Tray
     _tray_icon:  TrayIcon,
@@ -206,6 +221,16 @@ impl KillswitchApp {
 
         let form = FormState::from(&config, &password);
 
+        // Kick off an initial update check on startup.
+        let (update_check_rx, initial_check) = if config.updater.enabled {
+            let (tx, rx) = std::sync::mpsc::channel();
+            crate::updater::background_check(tx);
+            (Some(rx), true)
+        } else {
+            (None, false)
+        };
+        let _ = initial_check; // used for clarity only
+
         Self {
             shared,
             cmd_tx,
@@ -223,6 +248,11 @@ impl KillswitchApp {
             test_conn_pending: None,
             test_conn_result: None,
             test_conn_pass_snapshot: String::new(),
+            update_check_rx,
+            update_apply_rx: None,
+            update_status: None,
+            update_available: None,
+            last_update_check: Instant::now(),
             _tray_icon: tray_icon,
             resume_item,
             _pause_item: pause_item,
@@ -684,6 +714,135 @@ impl KillswitchApp {
         });
     }
 
+    // ── Updates tab ──────────────────────────────────────────────────────────
+
+    fn render_updates(&mut self, ui: &mut Ui) {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            ui.add_space(4.0);
+
+            // ── Version ──────────────────────────────────────────────────────
+            ui.group(|ui| {
+                ui.strong("Current version");
+                ui.add_space(4.0);
+                ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
+            });
+
+            ui.add_space(6.0);
+
+            // ── Settings ─────────────────────────────────────────────────────
+            ui.group(|ui| {
+                ui.strong("Update settings");
+                ui.add_space(4.0);
+
+                ui.checkbox(
+                    &mut self.editing.config.updater.enabled,
+                    "Check for updates automatically",
+                );
+
+                ui.add_space(4.0);
+                ui.add_enabled_ui(self.editing.config.updater.enabled, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Check every");
+                        ui.add(
+                            egui::DragValue::new(
+                                &mut self.editing.config.updater.check_interval_h,
+                            )
+                            .clamp_range(1..=168)
+                            .speed(1.0),
+                        );
+                        ui.label("hours");
+                    });
+                });
+
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new("Save settings above using the Save button below.")
+                        .small()
+                        .color(Color32::GRAY),
+                );
+            });
+
+            ui.add_space(6.0);
+
+            // ── Check / Install ───────────────────────────────────────────────
+            ui.group(|ui| {
+                ui.strong("Check for updates");
+                ui.add_space(4.0);
+
+                // Status label
+                if let Some(status) = self.update_status.clone() {
+                    let color = if status.starts_with("Update available") {
+                        Color32::from_rgb(230, 180, 0)
+                    } else if status.starts_with("Check failed") || status.starts_with("Update failed") {
+                        Color32::from_rgb(220, 60, 60)
+                    } else if status.starts_with("Downloading") || status == "Checking..." {
+                        Color32::GRAY
+                    } else {
+                        Color32::from_rgb(40, 200, 40)
+                    };
+                    ui.colored_label(color, &status);
+                    ui.add_space(4.0);
+                }
+
+                let checking = self.update_check_rx.is_some();
+                let applying = self.update_apply_rx.is_some();
+                let update_ready = self.update_available.is_some();
+
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(!checking && !applying, egui::Button::new("Check Now"))
+                        .clicked()
+                    {
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        crate::updater::background_check(tx);
+                        self.update_check_rx  = Some(rx);
+                        self.update_status    = Some("Checking...".to_string());
+                        self.update_available = None;
+                        self.last_update_check = Instant::now();
+                    }
+
+                    if checking {
+                        ui.spinner();
+                    }
+
+                    if update_ready {
+                        if ui
+                            .add_enabled(!applying, egui::Button::new("⬇  Download & Install"))
+                            .clicked()
+                        {
+                            self.update_apply_rx = Some(crate::updater::background_apply());
+                            self.update_status   = Some("Downloading update…".to_string());
+                        }
+                        if applying {
+                            ui.spinner();
+                        }
+                    }
+                });
+
+                ui.add_space(2.0);
+                ui.label(
+                    RichText::new("Updates are downloaded and verified with SHA-256 before applying. \
+                                   The app restarts automatically.")
+                        .small()
+                        .color(Color32::GRAY),
+                );
+            });
+
+            ui.add_space(8.0);
+
+            // ── Save / Cancel (mirrors Settings tab buttons) ──────────────────
+            ui.horizontal(|ui| {
+                if ui.button("Save").clicked() {
+                    self.do_save();
+                }
+                if ui.button("Cancel").clicked() {
+                    self.editing = self.saved.clone();
+                    self.save_errors.clear();
+                }
+            });
+        });
+    }
+
     // ── Unsaved-changes modal ─────────────────────────────────────────────────
 
     fn render_unsaved_dialog(&mut self, ctx: &egui::Context) {
@@ -744,6 +903,55 @@ impl eframe::App for KillswitchApp {
             if since.elapsed() >= Duration::from_secs(60) {
                 self.show_password = false;
                 self.show_password_since = None;
+            }
+        }
+
+        // ── Auto-updater polling ──────────────────────────────────────────────
+
+        // Periodic check: fire every N hours while no check is already running.
+        {
+            let interval = Duration::from_secs(
+                self.saved.config.updater.check_interval_h as u64 * 3600,
+            );
+            if self.saved.config.updater.enabled
+                && self.update_check_rx.is_none()
+                && self.update_apply_rx.is_none()
+                && self.last_update_check.elapsed() >= interval
+            {
+                let (tx, rx) = std::sync::mpsc::channel();
+                crate::updater::background_check(tx);
+                self.update_check_rx   = Some(rx);
+                self.last_update_check = Instant::now();
+            }
+        }
+
+        // Collect update-check result.
+        if let Some(rx) = &self.update_check_rx {
+            if let Ok(result) = rx.try_recv() {
+                self.update_check_rx   = None;
+                self.last_update_check = Instant::now();
+                match result {
+                    Ok(Some(v)) => {
+                        self.update_available = Some(v.clone());
+                        self.update_status    = Some(format!("Update available: v{v}"));
+                    }
+                    Ok(None) => {
+                        self.update_status = Some("You are up to date.".to_string());
+                    }
+                    Err(e) => {
+                        self.update_status = Some(format!("Check failed: {e}"));
+                    }
+                }
+            }
+        }
+
+        // Collect apply result (error path only — success calls process::exit).
+        if let Some(rx) = &self.update_apply_rx {
+            if let Ok(result) = rx.try_recv() {
+                self.update_apply_rx = None;
+                if let Err(e) = result {
+                    self.update_status = Some(format!("Update failed: {e}"));
+                }
             }
         }
 
@@ -852,11 +1060,19 @@ impl eframe::App for KillswitchApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.active_tab, AppTab::Settings, "⚙  Settings");
-                ui.selectable_value(&mut self.active_tab, AppTab::Help,     "?  Help");
+                // Show a dot on the Updates tab when an update is waiting.
+                let updates_label = if self.update_available.is_some() {
+                    "🔄  Updates ●"
+                } else {
+                    "🔄  Updates"
+                };
+                ui.selectable_value(&mut self.active_tab, AppTab::Updates, updates_label);
+                ui.selectable_value(&mut self.active_tab, AppTab::Help,    "?  Help");
             });
             ui.separator();
             match self.active_tab {
                 AppTab::Settings => self.render_settings(ui),
+                AppTab::Updates  => self.render_updates(ui),
                 AppTab::Help     => Self::render_help(ui),
             }
         });

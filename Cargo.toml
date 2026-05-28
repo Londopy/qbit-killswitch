@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 tokio       = { version = "1",      features = ["full"] }
-reqwest     = { version = "0.12",   features = ["cookies", "rustls-tls", "json"] }
+reqwest     = { version = "0.12",   features = ["cookies", "rustls-tls", "json", "blocking"] }
 anyhow      = "1"
 eframe      = "0.27"
 egui        = "0.27"
@@ -21,6 +21,10 @@ serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
 toml        = "0.8"
 url         = "2"
+semver       = { version = "1", features = ["serde"] }
+self_replace = "1"
+sha2         = "0.10"
+hex          = "0.4"
 
 # Linux: tray-icon requires one of these system libraries at build time.
 #   sudo apt install libayatana-appindicator3-dev   (preferred)
