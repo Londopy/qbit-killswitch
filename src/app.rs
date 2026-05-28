@@ -61,6 +61,23 @@ fn state_color(state: AppState) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
 
+/// Paint a heraldic shield (flat top, sides tapering to a bottom point) inside `rect`.
+fn paint_shield(painter: &egui::Painter, rect: egui::Rect, fill: Color32) {
+    use egui::{pos2, Shape, Stroke};
+    let (x0, x1) = (rect.left(), rect.right());
+    let (y0, y1) = (rect.top(), rect.bottom());
+    let cx       = (x0 + x1) / 2.0;
+    let taper_y  = y0 + (y1 - y0) * 0.58;
+    let pts = vec![
+        pos2(x0, y0),
+        pos2(x1, y0),
+        pos2(x1, taper_y),
+        pos2(cx, y1),
+        pos2(x0, taper_y),
+    ];
+    painter.add(Shape::convex_polygon(pts, fill, Stroke::NONE));
+}
+
 // ── Form state (mirrors Config; holds unsaved edits) ─────────────────────────
 
 #[derive(Clone)]
@@ -127,8 +144,10 @@ pub struct KillswitchApp {
     blink_start:         Instant,
 
     // Test connection
-    test_conn_pending: Option<tokio::task::JoinHandle<Result<(), String>>>,
-    test_conn_result:  Option<Result<(), String>>,
+    test_conn_pending:       Option<tokio::task::JoinHandle<Result<(), String>>>,
+    test_conn_result:        Option<Result<(), String>>,
+    /// Password snapshot taken when a test is launched; restored if the field empties.
+    test_conn_pass_snapshot: String,
 
     // Tray
     _tray_icon:  TrayIcon,
@@ -203,6 +222,7 @@ impl KillswitchApp {
             blink_start: Instant::now(),
             test_conn_pending: None,
             test_conn_result: None,
+            test_conn_pass_snapshot: String::new(),
             _tray_icon: tray_icon,
             resume_item,
             _pause_item: pause_item,
@@ -307,8 +327,27 @@ impl KillswitchApp {
                                 self.show_password_since =
                                     if self.show_password { Some(Instant::now()) } else { None };
                             }
+                            // Green dot = password is set; gives confidence even when field is masked
+                            if !self.editing.password.is_empty() {
+                                ui.label(
+                                    RichText::new("●")
+                                        .color(Color32::from_rgb(40, 200, 40))
+                                        .small(),
+                                ).on_hover_text("Password is set");
+                            }
                         });
                         ui.end_row();
+
+                        // Hint when field looks empty but a saved password exists
+                        if self.editing.password.is_empty() && !self.saved.password.is_empty() {
+                            ui.label("");
+                            ui.label(
+                                RichText::new("✓ saved password on file — type to replace")
+                                    .small()
+                                    .color(Color32::GRAY),
+                            );
+                            ui.end_row();
+                        }
 
                         ui.label("");
                         ui.checkbox(
@@ -321,6 +360,9 @@ impl KillswitchApp {
                 ui.add_space(4.0);
                 if ui.button("Test Connection").clicked() {
                     self.test_conn_result = None;
+                    // Snapshot password so we can restore it if the masked field
+                    // appears to empty itself while the async task runs.
+                    self.test_conn_pass_snapshot = self.editing.password.clone();
                     let url  = self.editing.config.qbit_url.clone();
                     let user = self.editing.config.qbit_user.clone();
                     let pass = self.editing.password.clone();
@@ -339,6 +381,14 @@ impl KillswitchApp {
                         self.test_conn_result = Some(
                             self.runtime.block_on(h).unwrap_or(Err("Task panicked".into()))
                         );
+                        // Restore password if it was cleared while the test ran
+                        // (egui can clear a masked field on certain focus events).
+                        if self.editing.password.is_empty()
+                            && !self.test_conn_pass_snapshot.is_empty()
+                        {
+                            self.editing.password = self.test_conn_pass_snapshot.clone();
+                        }
+                        self.test_conn_pass_snapshot.clear();
                     }
                 }
 
@@ -743,10 +793,10 @@ impl eframe::App for KillswitchApp {
                         state_color(app_state)
                     };
                     let (rect, _) = ui.allocate_exact_size(
-                        egui::vec2(14.0, 14.0),
+                        egui::vec2(12.0, 16.0),
                         egui::Sense::hover(),
                     );
-                    ui.painter().circle_filled(rect.center(), 7.0, dot_color);
+                    paint_shield(&ui.painter(), rect, dot_color);
 
                     // Status label
                     let label = match app_state {

@@ -162,9 +162,11 @@ jobs:
 
             ### Downloads
 
+            > **Windows users:** download the **installer** (`-setup.exe`) — it creates Start Menu and desktop shortcuts and removes itself cleanly on uninstall. The portable `.exe` is for advanced users who prefer a single file with no installation.
+
             | Platform | File | Notes |
             |---|---|---|
-            | **Windows x64 (installer)** | `qbit-killswitch-${{ github.ref_name }}-setup.exe` | Recommended — creates shortcuts and handles uninstall |
+            | **Windows x64 (installer)** ⭐ | `qbit-killswitch-${{ github.ref_name }}-setup.exe` | **Recommended for most users** |
             | Windows x64 (portable) | `qbit-killswitch-${{ github.ref_name }}-windows-x64.exe` | Single executable, no installer |
             | Linux x64 | `qbit-killswitch-${{ github.ref_name }}-linux-x64` | |
             | macOS Apple Silicon | `qbit-killswitch-${{ github.ref_name }}-macos-arm64` | |

@@ -13,33 +13,68 @@ mod state;
 use config::Config;
 use state::SharedState;
 
-/// Generate a simple circular icon for the window / taskbar.
-/// Uses the same green as the NOMINAL tray dot so they match.
+/// Generate the app icon: a green shield with a white padlock.
+/// 64×64 RGBA, rendered pixel-by-pixel from analytic shape tests.
 fn app_icon() -> egui::IconData {
-    const SIZE: u32 = 32;
+    const SIZE: u32 = 64;
     let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
-    let center = SIZE as f32 / 2.0;
-    let radius = center - 1.5;
+    let s = SIZE as f32;
     for y in 0..SIZE {
         for x in 0..SIZE {
-            let dx = x as f32 - center + 0.5;
-            let dy = y as f32 - center + 0.5;
-            let dist = (dx * dx + dy * dy).sqrt();
-            let alpha = if dist <= radius - 1.0 {
-                255u8
-            } else if dist <= radius {
-                ((radius - dist) * 255.0) as u8
+            let fx = (x as f32 + 0.5) / s;
+            let fy = (y as f32 + 0.5) / s;
+            let i  = ((y * SIZE + x) * 4) as usize;
+            if !icon_in_shield(fx, fy) {
+                // transparent — leave as zeroes
+            } else if icon_in_lock(fx, fy) {
+                // white padlock glyph
+                rgba[i]     = 255;
+                rgba[i + 1] = 255;
+                rgba[i + 2] = 255;
+                rgba[i + 3] = 255;
             } else {
-                0u8
-            };
-            let i = ((y * SIZE + x) * 4) as usize;
-            rgba[i]     = 40;   // R — matches NOMINAL green
-            rgba[i + 1] = 200;  // G
-            rgba[i + 2] = 40;   // B
-            rgba[i + 3] = alpha;
+                // green shield body
+                rgba[i]     = 28;
+                rgba[i + 1] = 158;
+                rgba[i + 2] = 70;
+                rgba[i + 3] = 255;
+            }
         }
     }
     egui::IconData { rgba, width: SIZE, height: SIZE }
+}
+
+/// True if the normalised point (x, y) ∈ [0,1]² is inside the shield outline.
+/// Flat top, straight sides tapering to a point at the bottom.
+fn icon_in_shield(x: f32, y: f32) -> bool {
+    const TOP:   f32 = 0.07;  // top edge
+    const BOT:   f32 = 0.95;  // tip of point
+    const TAPER: f32 = 0.58;  // y where sides start converging
+    const HALF:  f32 = 0.40;  // half-width of the straight section
+    const CX:    f32 = 0.50;
+
+    if y < TOP || y > BOT { return false; }
+    let hw = if y <= TAPER {
+        HALF
+    } else {
+        HALF * (BOT - y) / (BOT - TAPER)
+    };
+    (x - CX).abs() < hw
+}
+
+/// True if the normalised point (x, y) falls on the padlock glyph.
+/// Consists of a hollow shackle (upper semicircle) and a rectangular body.
+fn icon_in_lock(x: f32, y: f32) -> bool {
+    const CX: f32 = 0.50;
+    // Shackle: hollow semicircle arc (ring) above the body
+    let dx = x - CX;
+    let dy = y - 0.43;
+    let r  = (dx * dx + dy * dy).sqrt();
+    if r >= 0.09 && r <= 0.155 && y <= 0.43 {
+        return true;
+    }
+    // Body: filled rectangle
+    x >= 0.315 && x <= 0.685 && y >= 0.44 && y <= 0.72
 }
 
 fn main() -> anyhow::Result<()> {
