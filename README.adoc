@@ -11,6 +11,7 @@ A VPN killswitch daemon for qBittorrent — monitors your public IP on a configu
 
 image:https://img.shields.io/badge/license-MIT-blue.svg[MIT License]
 image:https://img.shields.io/badge/built_with-Rust-orange.svg[Built with Rust]
+image:https://github.com/Londopy/qbit-killswitch/actions/workflows/ci.yml/badge.svg[CI,link=https://github.com/Londopy/qbit-killswitch/actions/workflows/ci.yml]
 
 == What is this?
 
