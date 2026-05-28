@@ -65,8 +65,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; \
   Description: "{cm:CreateDesktopIcon}"; \
-  GroupDescription: "{cm:AdditionalIcons}"; \
-  Flags: unchecked
+  GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
 ; Main binary — built by `cargo build --release`

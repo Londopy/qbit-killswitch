@@ -112,6 +112,7 @@ pub struct KillswitchApp {
     show_unsaved_dialog: bool,
     /// Whether to actually close (true) or minimize-to-tray (false) after confirming.
     quit_after_dialog:   bool,
+    show_password:       bool,
     blink_start:         Instant,
 
     // Test connection
@@ -185,6 +186,7 @@ impl KillswitchApp {
             force_quit: false,
             show_unsaved_dialog: false,
             quit_after_dialog: false,
+            show_password: false,
             blink_start: Instant::now(),
             test_conn_pending: None,
             test_conn_result: None,
@@ -281,10 +283,16 @@ impl KillswitchApp {
                         ui.end_row();
 
                         ui.label("Password");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.editing.password)
-                                .password(true),
-                        );
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.editing.password)
+                                    .password(!self.show_password),
+                            );
+                            let eye = if self.show_password { "🙈" } else { "👁" };
+                            if ui.small_button(eye).on_hover_text("Show / hide password").clicked() {
+                                self.show_password = !self.show_password;
+                            }
+                        });
                         ui.end_row();
 
                         ui.label("");
@@ -641,6 +649,13 @@ impl eframe::App for KillswitchApp {
         // ── Unsaved changes dialog ──────────────────────────────────────
         if self.show_unsaved_dialog {
             self.render_unsaved_dialog(ctx);
+        }
+
+        // ── Keep update() running while minimized to tray ───────────────
+        // Without this, eframe stops calling update() when the window is
+        // hidden, so poll_tray_events() never fires and the tray menu is dead.
+        if self.saved.config.minimize_to_tray {
+            ctx.request_repaint_after(Duration::from_millis(100));
         }
     }
 }

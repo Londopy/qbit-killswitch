@@ -53,10 +53,10 @@ impl QbitClient {
             bail!("IP banned by qBittorrent (403)");
         }
         if body.trim() == "Fails." {
-            bail!("Invalid credentials");
+            bail!("Invalid credentials — check your username and password");
         }
         if body.trim() != "Ok." {
-            bail!("Unexpected login response: {body}");
+            bail!("{}", diagnose_unexpected(&body));
         }
         Ok(())
     }
@@ -146,6 +146,23 @@ impl QbitClient {
     }
 }
 
+/// Produce a human-readable diagnosis when the API returns something unexpected.
+fn diagnose_unexpected(body: &str) -> String {
+    let trimmed = body.trim();
+    if trimmed.starts_with('<') {
+        return format!(
+            "Got an HTML page instead of the qBittorrent API — \
+             check the URL points to the Web UI (e.g. http://127.0.0.1:8080). \
+             Make sure the Web UI is enabled in qBittorrent → Tools → Options → Web UI."
+        );
+    }
+    if trimmed.is_empty() {
+        return "Empty response from server — is the qBittorrent Web UI enabled and reachable?".into();
+    }
+    let snippet: String = trimmed.chars().take(120).collect();
+    format!("Unexpected response from qBittorrent: {snippet:?}")
+}
+
 /// One-shot test: try to log in with the given credentials. Returns Ok(()) or an error string.
 pub async fn test_connection(base_url: &str, username: &str, password: &str) -> Result<()> {
     let client = reqwest::Client::builder()
@@ -160,19 +177,19 @@ pub async fn test_connection(base_url: &str, username: &str, password: &str) -> 
         .form(&[("username", username), ("password", password)])
         .send()
         .await
-        .context("Connection failed")?;
+        .context("Connection failed — check the URL and that qBittorrent is running")?;
 
     let status = resp.status();
     let body = resp.text().await.unwrap_or_default();
 
     if status == 403 {
-        bail!("IP banned by qBittorrent");
+        bail!("IP banned by qBittorrent — restart qBittorrent to clear the ban");
     }
     if body.trim() == "Fails." {
-        bail!("Invalid credentials");
+        bail!("Invalid credentials — check your username and password");
     }
     if body.trim() != "Ok." {
-        bail!("Unexpected response: {body}");
+        bail!("{}", diagnose_unexpected(&body));
     }
     Ok(())
 }

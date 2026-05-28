@@ -13,6 +13,35 @@ mod state;
 use config::Config;
 use state::SharedState;
 
+/// Generate a simple circular icon for the window / taskbar.
+/// Uses the same green as the NOMINAL tray dot so they match.
+fn app_icon() -> egui::IconData {
+    const SIZE: u32 = 32;
+    let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
+    let center = SIZE as f32 / 2.0;
+    let radius = center - 1.5;
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let dx = x as f32 - center + 0.5;
+            let dy = y as f32 - center + 0.5;
+            let dist = (dx * dx + dy * dy).sqrt();
+            let alpha = if dist <= radius - 1.0 {
+                255u8
+            } else if dist <= radius {
+                ((radius - dist) * 255.0) as u8
+            } else {
+                0u8
+            };
+            let i = ((y * SIZE + x) * 4) as usize;
+            rgba[i]     = 40;   // R — matches NOMINAL green
+            rgba[i + 1] = 200;  // G
+            rgba[i + 2] = 40;   // B
+            rgba[i + 3] = alpha;
+        }
+    }
+    egui::IconData { rgba, width: SIZE, height: SIZE }
+}
+
 fn main() -> anyhow::Result<()> {
     // ── Tokio runtime (multi-thread, for monitor + async GUI ops) ─────────────
     let runtime = Arc::new(
@@ -54,7 +83,8 @@ fn main() -> anyhow::Result<()> {
             .with_title("qbit-killswitch")
             .with_inner_size([500.0, 600.0])
             .with_min_inner_size([400.0, 400.0])
-            .with_resizable(true),
+            .with_resizable(true)
+            .with_icon(Arc::new(app_icon())),
         ..Default::default()
     };
 
