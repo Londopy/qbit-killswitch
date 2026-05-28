@@ -358,21 +358,26 @@ impl KillswitchApp {
                     });
 
                 ui.add_space(4.0);
-                if ui.button("Test Connection").clicked() {
-                    self.test_conn_result = None;
-                    // Snapshot password so we can restore it if the masked field
-                    // appears to empty itself while the async task runs.
-                    self.test_conn_pass_snapshot = self.editing.password.clone();
-                    let url  = self.editing.config.qbit_url.clone();
-                    let user = self.editing.config.qbit_user.clone();
-                    let pass = self.editing.password.clone();
-                    let handle = self.runtime.spawn(async move {
-                        test_connection(&url, &user, &pass)
-                            .await
-                            .map_err(|e| e.to_string())
-                    });
-                    self.test_conn_pending = Some(handle);
-                }
+                ui.horizontal(|ui| {
+                    if ui.button("Save").clicked() {
+                        self.do_save();
+                    }
+                    if ui.button("Test Connection").clicked() {
+                        self.test_conn_result = None;
+                        // Snapshot password so we can restore it if the masked field
+                        // appears to empty itself while the async task runs.
+                        self.test_conn_pass_snapshot = self.editing.password.clone();
+                        let url  = self.editing.config.qbit_url.clone();
+                        let user = self.editing.config.qbit_user.clone();
+                        let pass = self.editing.password.clone();
+                        let handle = self.runtime.spawn(async move {
+                            test_connection(&url, &user, &pass)
+                                .await
+                                .map_err(|e| e.to_string())
+                        });
+                        self.test_conn_pending = Some(handle);
+                    }
+                });
 
                 // Poll test connection result
                 if let Some(handle) = &self.test_conn_pending {
@@ -796,7 +801,7 @@ impl eframe::App for KillswitchApp {
                         egui::vec2(12.0, 16.0),
                         egui::Sense::hover(),
                     );
-                    paint_shield(&ui.painter(), rect, dot_color);
+                    paint_shield(ui.painter(), rect, dot_color);
 
                     // Status label
                     let label = match app_state {

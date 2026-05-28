@@ -53,7 +53,7 @@ fn icon_in_shield(x: f32, y: f32) -> bool {
     const HALF:  f32 = 0.40;  // half-width of the straight section
     const CX:    f32 = 0.50;
 
-    if y < TOP || y > BOT { return false; }
+    if !(TOP..=BOT).contains(&y) { return false; }
     let hw = if y <= TAPER {
         HALF
     } else {
@@ -70,11 +70,11 @@ fn icon_in_lock(x: f32, y: f32) -> bool {
     let dx = x - CX;
     let dy = y - 0.43;
     let r  = (dx * dx + dy * dy).sqrt();
-    if r >= 0.09 && r <= 0.155 && y <= 0.43 {
+    if (0.09..=0.155).contains(&r) && y <= 0.43 {
         return true;
     }
     // Body: filled rectangle
-    x >= 0.315 && x <= 0.685 && y >= 0.44 && y <= 0.72
+    (0.315..=0.685).contains(&x) && (0.44..=0.72).contains(&y)
 }
 
 fn main() -> anyhow::Result<()> {
