@@ -249,12 +249,12 @@ impl KillswitchApp {
         let tooltip = format!("qbit-killswitch — {}", state.label());
         let _ = self._tray_icon.set_tooltip(Some(&tooltip));
 
-        let _ = self.status_item.set_text(format!("Status: {}", state.label()));
+        self.status_item.set_text(format!("Status: {}", state.label()));
         let ip_str = vpn_ip.map_or("—".to_string(), |ip| ip.to_string());
-        let _ = self.ip_item.set_text(format!("VPN IP: {ip_str}"));
+        self.ip_item.set_text(format!("VPN IP: {ip_str}"));
 
         // Enable Resume only when paused; grey it out otherwise
-        let _ = self.resume_item.set_enabled(
+        self.resume_item.set_enabled(
             matches!(state, AppState::Paused | AppState::Degraded)
         );
     }
@@ -527,18 +527,19 @@ impl KillswitchApp {
 impl eframe::App for KillswitchApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // ── Handle window close request ────────────────────────────────────────
-        if ctx.input(|i| i.viewport().close_requested()) {
-            if !self.force_quit && self.saved.config.minimize_to_tray {
-                ctx.send_viewport_cmd(ViewportCommand::CancelClose);
-                if self.editing.has_changes(&self.saved) {
-                    self.show_unsaved_dialog = true;
-                    self.quit_after_dialog   = false;
-                } else {
-                    ctx.send_viewport_cmd(ViewportCommand::Visible(false));
-                }
+        if ctx.input(|i| i.viewport().close_requested())
+            && !self.force_quit
+            && self.saved.config.minimize_to_tray
+        {
+            ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+            if self.editing.has_changes(&self.saved) {
+                self.show_unsaved_dialog = true;
+                self.quit_after_dialog   = false;
+            } else {
+                ctx.send_viewport_cmd(ViewportCommand::Visible(false));
             }
-            // If force_quit or minimize_to_tray=false, eframe handles the close normally.
         }
+        // If force_quit or minimize_to_tray=false, eframe handles the close normally.
 
         // ── Poll async tasks & tray ────────────────────────────────────────────
         self.poll_tray_events(ctx);
@@ -570,7 +571,7 @@ impl eframe::App for KillswitchApp {
         }
 
         // ── Blink phase for RECOVERY (toggles every 500 ms) ────────────────────
-        let blink_phase = (self.blink_start.elapsed().as_millis() / 500) % 2 == 0;
+        let blink_phase = (self.blink_start.elapsed().as_millis() / 500).is_multiple_of(2);
         if app_state == AppState::Recovery {
             ctx.request_repaint_after(Duration::from_millis(500));
         }

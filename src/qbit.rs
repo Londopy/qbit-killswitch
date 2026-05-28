@@ -150,11 +150,10 @@ impl QbitClient {
 fn diagnose_unexpected(body: &str) -> String {
     let trimmed = body.trim();
     if trimmed.starts_with('<') {
-        return format!(
-            "Got an HTML page instead of the qBittorrent API — \
+        return "Got an HTML page instead of the qBittorrent API — \
              check the URL points to the Web UI (e.g. http://127.0.0.1:8080). \
              Make sure the Web UI is enabled in qBittorrent → Tools → Options → Web UI."
-        );
+            .to_string();
     }
     if trimmed.is_empty() {
         return "Empty response from server — is the qBittorrent Web UI enabled and reachable?".into();
