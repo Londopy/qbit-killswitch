@@ -55,7 +55,11 @@ impl QbitClient {
         if body.trim() == "Fails." {
             bail!("Invalid credentials — check your username and password");
         }
-        if body.trim() != "Ok." {
+        // "Ok." = normal login success.
+        // Empty body + 2xx = "Bypass authentication for clients on localhost" is
+        // enabled in qBittorrent; the server auto-authenticates localhost clients
+        // without going through the login flow (same as Sonarr / Radarr behaviour).
+        if body.trim() != "Ok." && !(status.is_success() && body.trim().is_empty()) {
             bail!("{}", diagnose_unexpected(&body));
         }
         Ok(())
@@ -187,7 +191,7 @@ pub async fn test_connection(base_url: &str, username: &str, password: &str) -> 
     if body.trim() == "Fails." {
         bail!("Invalid credentials — check your username and password");
     }
-    if body.trim() != "Ok." {
+    if body.trim() != "Ok." && !(status.is_success() && body.trim().is_empty()) {
         bail!("{}", diagnose_unexpected(&body));
     }
     Ok(())
